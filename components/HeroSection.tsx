@@ -14,9 +14,9 @@ export default function HeroSection({ onAnalyze }: HeroSectionProps) {
 
   const QUICK_SAMPLES = [
     { code: "16-118(2)", agency: "DSNY", label: "Sidewalk Snow/Ice", color: "#10b981", bg: "rgba(16, 185, 129, 0.12)" },
-    { code: "24-244", agency: "DEP", label: "Unreasonable Noise", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.12)" },
-    { code: "28-301.1", agency: "DOB", label: "Building Maintenance", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)" },
-    { code: "81.07", agency: "DOHMH", label: "Food Safety", color: "#ec4899", bg: "rgba(236, 72, 153, 0.12)" },
+    { code: "A.C. 16-120 C", agency: "DSNY", label: "Storage of Receptacles", color: "#06b6d4", bg: "rgba(6, 182, 212, 0.12)" },
+    { code: "10-125", agency: "—", label: "Highest dismissal rate (62%)", color: "#10b981", bg: "rgba(16, 185, 129, 0.12)" },
+    { code: "28-301.1", agency: "DOB", label: "Lowest dismissal rate (10%)", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)" },
   ];
 
   function handleSubmitCode(e: React.FormEvent) {
