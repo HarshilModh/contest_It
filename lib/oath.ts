@@ -3,30 +3,52 @@ import oathCacheRaw from './oath-cache.json';
 
 const oathCache = oathCacheRaw as Record<string, OathStats>;
 
+const DATASET_URL = 'https://data.cityofnewyork.us/resource/jz4z-kudi.json';
+
 /**
- * Normalizes hearing_result string from NYC Open Data into our Outcome union.
+ * Full classification of a raw `hearing_result` string.
+ *
+ * The dataset mixes genuinely adjudicated hearings with cases that never got
+ * decided on the merits. Only the first four map onto our `Outcome` union and
+ * count toward the odds we report; the rest are tracked so they can be
+ * *excluded* from the denominator:
+ *
+ *  - `pending`     — no hearing_result yet (the single largest bucket)
+ *  - `written_off` — the city stopped pursuing collection
+ *  - `default`     — respondent never appeared, so it was never contested
+ *  - `adjourned`   — rescheduled, outcome recorded on another row
  */
-export function normalizeOutcome(resultString: string | null | undefined): Outcome {
-  if (!resultString) return 'other';
+type ResultClass = Outcome | 'default' | 'written_off' | 'adjourned' | 'pending';
+
+export function classifyResult(resultString: string | null | undefined): ResultClass {
+  if (!resultString || !resultString.trim()) return 'pending';
   const upper = resultString.toUpperCase().trim();
 
-  if (upper.includes('DISMISS')) {
-    return 'dismissed';
-  }
+  if (upper.includes('DISMISS')) return 'dismissed';
+  if (upper.includes('ADJOURN') || upper.includes('ADJORN')) return 'adjourned';
+  if (upper.includes('WRITTEN OFF')) return 'written_off';
+  if (upper.includes('DEFAULT')) return 'default';
+  // Checked before in-violation so "SETTL IN-VIO" reads as a settlement.
+  if (upper.includes('SETTL') || upper.includes('STIPULAT')) return 'settled';
   if (
     upper.includes('VIOLATION') ||
+    upper.includes('IN-VIO') ||
+    upper.includes('INVIO') ||
     upper.includes('SUSTAINED') ||
-    upper.includes('DEFAULT') ||
-    upper.includes('IN-VIOL')
+    upper.includes('FINED')
   ) {
     return 'in_violation';
   }
-  if (upper.includes('SETTL') || upper.includes('STIPULAT')) {
-    return 'settled';
-  }
 
-  // Log unmapped outcome for monitoring/debugging
   console.log(`[OATH] Unmapped outcome string encountered: "${resultString}"`);
+  return 'other';
+}
+
+/** Back-compat wrapper: collapses the excluded classes onto the `Outcome` union. */
+export function normalizeOutcome(resultString: string | null | undefined): Outcome {
+  const cls = classifyResult(resultString);
+  if (cls === 'default') return 'in_violation';
+  if (cls === 'dismissed' || cls === 'in_violation' || cls === 'settled') return cls;
   return 'other';
 }
 
@@ -49,7 +71,6 @@ function findInCache(code: string): OathStats | null {
   if (oathCache[cleaned]) return oathCache[cleaned];
   if (oathCache[norm]) return oathCache[norm];
 
-  // Try extracting core section number (e.g., "16-118" from "A.C. 16-118 2 A")
   const sectionMatch = cleaned.match(/\b\d{1,3}[-.]\d{1,3}\b/);
   if (sectionMatch) {
     const sec = sectionMatch[0];
@@ -58,7 +79,6 @@ function findInCache(code: string): OathStats | null {
     if (oathCache[secNorm]) return oathCache[secNorm];
   }
 
-  // Look for substring match in cache keys
   for (const [key, val] of Object.entries(oathCache)) {
     if (key.length >= 4 && (norm.includes(key) || key.includes(norm))) {
       return val;
@@ -68,9 +88,140 @@ function findInCache(code: string): OathStats | null {
   return null;
 }
 
+interface GroupedRow {
+  hearing_result?: string;
+  penalty_imposed?: string;
+  count?: string;
+}
+
+/** Extracts the queryable section number from a messy user/OCR charge code. */
+function toQueryCode(chargeCode: string): string {
+  const sectionMatch = chargeCode.match(/\b\d{1,3}[-.]\d{1,3}\b/);
+  return sectionMatch ? sectionMatch[0] : chargeCode;
+}
+
 /**
- * Retrieves aggregate OATH stats for a given charge code from NYC Open Data (Socrata API),
- * with a 5-second timeout and automatic fallback to precomputed local cache.
+ * One server-side GROUP BY over every matching row. Returns the full
+ * (hearing_result × penalty_imposed) distribution — a few hundred rows that
+ * summarize millions of cases exactly, with no row cap and no sampling bias.
+ */
+async function fetchGroupedRows(queryCode: string, timeoutMs: number): Promise<GroupedRow[]> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const safeCode = queryCode.replace(/'/g, "''");
+    const where = `charge_1_code_section LIKE '%${safeCode}%'`;
+    const url =
+      `${DATASET_URL}?$select=hearing_result,penalty_imposed,count(*)` +
+      `&$where=${encodeURIComponent(where)}` +
+      `&$group=hearing_result,penalty_imposed&$limit=50000`;
+
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return [];
+    const rows = (await res.json()) as GroupedRow[];
+    return Array.isArray(rows) ? rows : [];
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Folds the grouped distribution into OathStats.
+ *
+ * `dismissalRate` is computed over **contested hearings only** — cases that
+ * actually reached a decision (dismissed / in violation / settled / other).
+ * Pending, written-off, and default cases are excluded, because they answer a
+ * different question than "if I show up and fight this, what happens?".
+ * Penalty figures are the exact weighted average and median among cases that
+ * were found in violation — i.e. what you pay if you lose.
+ */
+export function aggregateGroupedRows(rows: GroupedRow[], chargeCode: string): OathStats | null {
+  const counts: Record<ResultClass, number> = {
+    dismissed: 0,
+    in_violation: 0,
+    settled: 0,
+    other: 0,
+    default: 0,
+    written_off: 0,
+    adjourned: 0,
+    pending: 0,
+  };
+
+  const penaltyPairs: Array<[penalty: number, count: number]> = [];
+
+  for (const row of rows) {
+    const n = Number(row.count ?? 0);
+    if (!Number.isFinite(n) || n <= 0) continue;
+
+    const cls = classifyResult(row.hearing_result);
+    counts[cls] += n;
+
+    if (cls === 'in_violation' && row.penalty_imposed != null) {
+      const penalty = parseFloat(row.penalty_imposed);
+      if (Number.isFinite(penalty)) penaltyPairs.push([penalty, n]);
+    }
+  }
+
+  const outcomeBreakdown: Record<Outcome, number> = {
+    dismissed: counts.dismissed,
+    in_violation: counts.in_violation,
+    settled: counts.settled,
+    other: counts.other,
+  };
+
+  const totalCases =
+    outcomeBreakdown.dismissed +
+    outcomeBreakdown.in_violation +
+    outcomeBreakdown.settled +
+    outcomeBreakdown.other;
+
+  if (totalCases === 0) return null;
+
+  // Exact weighted average and median from the value distribution.
+  penaltyPairs.sort((a, b) => a[0] - b[0]);
+  const penaltyTotal = penaltyPairs.reduce((sum, [, c]) => sum + c, 0);
+  const penaltySum = penaltyPairs.reduce((sum, [p, c]) => sum + p * c, 0);
+
+  let medianPenaltyImposed: number | null = null;
+  let running = 0;
+  for (const [penalty, c] of penaltyPairs) {
+    running += c;
+    if (running >= penaltyTotal / 2) {
+      medianPenaltyImposed = penalty;
+      break;
+    }
+  }
+
+  return {
+    chargeCode,
+    totalCases,
+    dismissalRate: Number((outcomeBreakdown.dismissed / totalCases).toFixed(4)),
+    outcomeBreakdown,
+    avgPenaltyImposed: penaltyTotal > 0 ? Math.round(penaltySum / penaltyTotal) : null,
+    medianPenaltyImposed: medianPenaltyImposed !== null ? Math.round(medianPenaltyImposed) : null,
+    dataSource: 'live',
+    sampleWindow: '2019-2026',
+  };
+}
+
+/**
+ * Live aggregate straight from NYC Open Data, with no cache fallback.
+ * Used by `scripts/precompute.ts` so the cache is built by the same math the
+ * live path uses.
+ */
+export async function fetchLiveStats(
+  chargeCode: string,
+  timeoutMs = 15000
+): Promise<OathStats | null> {
+  if (!chargeCode || !chargeCode.trim()) return null;
+  const cleaned = chargeCode.trim();
+  const rows = await fetchGroupedRows(toQueryCode(cleaned), timeoutMs);
+  return aggregateGroupedRows(rows, cleaned);
+}
+
+/**
+ * Retrieves aggregate OATH stats for a charge code, with a short timeout on the
+ * live query and automatic fallback to the precomputed local cache.
  */
 export async function getStatsForCharge(chargeCode: string): Promise<OathStats | null> {
   if (!chargeCode || !chargeCode.trim()) {
@@ -78,87 +229,26 @@ export async function getStatsForCharge(chargeCode: string): Promise<OathStats |
   }
 
   const cleanedCode = chargeCode.trim();
-  const sectionMatch = cleanedCode.match(/\b\d{1,3}[-.]\d{1,3}\b/);
-  const queryCode = sectionMatch ? sectionMatch[0] : cleanedCode;
-
-  // 1. Attempt live fetch with 5s timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
 
   try {
-    const encode = encodeURIComponent;
-    const whereClause = `charge_1_code_section LIKE '%${queryCode}%'`;
-    const url = `https://data.cityofnewyork.us/resource/jz4z-kudi.json?$select=hearing_result,penalty_imposed&$where=${encode(whereClause)}&$limit=5000`;
-
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (res.ok) {
-      const rows = (await res.json()) as Array<{ hearing_result?: string; penalty_imposed?: string }>;
-
-      if (Array.isArray(rows) && rows.length > 0) {
-        const totalCases = rows.length;
-        const outcomeBreakdown: Record<Outcome, number> = {
-          dismissed: 0,
-          in_violation: 0,
-          settled: 0,
-          other: 0
-        };
-
-        let penaltySum = 0;
-        let penaltyCount = 0;
-        const penalties: number[] = [];
-
-        for (const r of rows) {
-          const outcome = normalizeOutcome(r.hearing_result);
-          outcomeBreakdown[outcome] = (outcomeBreakdown[outcome] || 0) + 1;
-
-          if (r.penalty_imposed) {
-            const val = parseFloat(r.penalty_imposed);
-            if (!isNaN(val)) {
-              penaltySum += val;
-              penaltyCount++;
-              penalties.push(val);
-            }
-          }
-        }
-
-        penalties.sort((a, b) => a - b);
-        const medianPenalty =
-          penalties.length > 0
-            ? penalties[Math.floor(penalties.length / 2)]
-            : null;
-
-        const dismissalRate = totalCases > 0 ? outcomeBreakdown.dismissed / totalCases : 0;
-        const avgPenaltyImposed = penaltyCount > 0 ? Math.round(penaltySum / penaltyCount) : null;
-
-        return {
-          chargeCode: cleanedCode,
-          totalCases,
-          dismissalRate: Number(dismissalRate.toFixed(2)),
-          outcomeBreakdown,
-          avgPenaltyImposed,
-          medianPenaltyImposed: medianPenalty !== null ? Math.round(medianPenalty) : null,
-          dataSource: 'live',
-          sampleWindow: '2019-2026'
-        };
-      }
-    }
+    const rows = await fetchGroupedRows(toQueryCode(cleanedCode), 6000);
+    const stats = aggregateGroupedRows(rows, cleanedCode);
+    if (stats) return stats;
   } catch (err) {
-    clearTimeout(timeoutId);
-    console.warn(`[OATH] Live fetch for code "${cleanedCode}" failed or timed out. Falling back to cache.`, err);
+    console.warn(
+      `[OATH] Live aggregate for code "${cleanedCode}" failed or timed out. Falling back to cache.`,
+      err
+    );
   }
 
-  // 2. Fallback to cached data if live fetch failed, timed out, or returned empty
   const cachedData = findInCache(cleanedCode);
   if (cachedData) {
     return {
       ...cachedData,
       chargeCode: cleanedCode,
-      dataSource: 'cached'
+      dataSource: 'cached',
     };
   }
 
-  // 3. Return null if no data exists in live API or cache
   return null;
 }
