@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   createSpeechRecognition,
@@ -12,11 +12,21 @@ import {
 
 interface VoiceInputProps {
   onTranscript: (transcript: string) => void;
+  label?: string;
+  listeningLabel?: string;
+  example?: string;
+  helperText?: string;
 }
 
 type VoiceStatus = "idle" | "listening" | "processing";
 
-export default function VoiceInput({ onTranscript }: VoiceInputProps) {
+export default function VoiceInput({
+  onTranscript,
+  label = "Say the violation code",
+  listeningLabel = "Listening… say the violation code",
+  example = "Example: “A.C. 16-118 2 A”",
+  helperText = "Your browser may ask for microphone permission. Text input remains available.",
+}: VoiceInputProps) {
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [preview, setPreview] = useState("");
   const [error, setError] = useState("");
@@ -25,6 +35,7 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
   const deliveredRef = useRef(false);
   const hadErrorRef = useRef(false);
   const onTranscriptRef = useRef(onTranscript);
+  const statusId = useId();
 
   useEffect(() => {
     onTranscriptRef.current = onTranscript;
@@ -113,10 +124,10 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
   const isActive = status !== "idle";
   const statusLabel =
     status === "listening"
-      ? "Listening… say the violation code"
+      ? listeningLabel
       : status === "processing"
         ? "Starting microphone…"
-        : "Say the violation code";
+        : label;
 
   return (
     <div className="w-full">
@@ -124,7 +135,7 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
         type="button"
         onClick={isActive ? stopListening : startListening}
         aria-pressed={isActive}
-        aria-describedby="voice-input-status"
+        aria-describedby={statusId}
         className={[
           "group flex min-h-14 w-full items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left",
           "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400",
@@ -162,7 +173,7 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
           <span className="min-w-0">
             <span className="block text-sm font-semibold">{statusLabel}</span>
             <span className="block truncate text-xs text-zinc-500">
-              {preview || "Example: “A.C. 16-118 2 A”"}
+              {preview || example}
             </span>
           </span>
         </span>
@@ -172,7 +183,7 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
       </button>
 
       <p
-        id="voice-input-status"
+        id={statusId}
         role="status"
         aria-live="polite"
         className={[
@@ -183,7 +194,7 @@ export default function VoiceInput({ onTranscript }: VoiceInputProps) {
         {error ||
           (preview
             ? `Heard: “${preview}”`
-            : "Your browser may ask for microphone permission. Text input remains available.")}
+            : helperText)}
       </p>
     </div>
   );
