@@ -1,0 +1,32 @@
+{
+    "extraction": {
+      "chargeCode": "16-118(2)",
+      "chargeDescription": "Failure to clean sidewalk of snow/ice",
+      "issuingAgency": "DSNY",
+      "violationDate": "2026-01-14",
+      "penaltyOnTicket": 100,
+      "confidence": "high",
+      "unreadableFields": []
+    },
+    "stats": {
+      "chargeCode": "16-118(2)",
+      "totalCases": 4213,
+      "dismissalRate": 0.31,
+      "outcomeBreakdown": {
+        "dismissed": 1306,
+        "in_violation": 2570,
+        "settled": 240,
+        "other": 97
+      },
+      "avgPenaltyImposed": 62.5,
+      "medianPenaltyImposed": 50,
+      "dataSource": "cached",
+      "sampleWindow": "2019-2026"
+    },
+    "headline": "You have roughly a 31% shot at a dismissal.",
+    "reasoning": "Of over 4,000 hearings for this exact charge, about one in three ended in dismissal, and the average imposed penalty ran well below the ticketed amount. Outcomes for this code lean in favor of contesting rather than paying outright.",
+    "defenseDraft": "On [date], I was issued a summons for [charge code] at [address]. At the time, [describe the specific circumstance — e.g., weather conditions, timing of cleanup, signage]. I am requesting the hearing officer consider dismissal or a reduced penalty in light of these facts.",
+    "caveats": [
+      "This is a statistical summary of public hearing data, not legal advice."
+    ]
+  }
