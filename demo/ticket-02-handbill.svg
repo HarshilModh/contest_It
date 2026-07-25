@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100">
+  <rect width="800" height="1100" fill="#e9e7df"/>
+  <rect x="48" y="38" width="704" height="1024" rx="4" fill="#fff" stroke="#111" stroke-width="3"/>
+  <rect x="70" y="60" width="660" height="74" fill="#111"/>
+  <text x="400" y="91" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="25" font-weight="700">CONTEST IT — DEMO TICKET</text>
+  <text x="400" y="119" text-anchor="middle" fill="#fbbf24" font-family="Arial, sans-serif" font-size="18" font-weight="700">NOT AN OFFICIAL SUMMONS</text>
+  <text x="76" y="181" font-family="Arial, sans-serif" font-size="15" fill="#555">TEST FIXTURE 02</text>
+  <text x="724" y="181" text-anchor="end" font-family="Courier New, monospace" font-size="15">DEMO-0002</text>
+  <line x1="76" y1="202" x2="724" y2="202" stroke="#111" stroke-width="2"/>
+  <text x="76" y="249" font-family="Arial, sans-serif" font-size="16" fill="#555">ISSUING AGENCY</text>
+  <text x="76" y="282" font-family="Arial, sans-serif" font-size="27" font-weight="700">DSNY</text>
+  <text x="450" y="249" font-family="Arial, sans-serif" font-size="16" fill="#555">VIOLATION DATE</text>
+  <text x="450" y="282" font-family="Arial, sans-serif" font-size="27" font-weight="700">2026-07-16</text>
+  <rect x="76" y="325" width="648" height="190" fill="#fafafa" stroke="#111" stroke-width="2"/>
+  <text x="98" y="363" font-family="Arial, sans-serif" font-size="16" fill="#555">CHARGE CODE / SECTION</text>
+  <text x="98" y="421" font-family="Courier New, monospace" font-size="44" font-weight="700">10.119.</text>
+  <text x="98" y="466" font-family="Arial, sans-serif" font-size="21" font-weight="700">ILLEGAL POSTING OF HANDBILL / NOTICE</text>
+  <text x="76" y="566" font-family="Arial, sans-serif" font-size="16" fill="#555">ALLEGED CONDITION</text>
+  <text x="76" y="601" font-family="Arial, sans-serif" font-size="21">A notice was allegedly posted without authorization.</text>
+  <text x="76" y="664" font-family="Arial, sans-serif" font-size="16" fill="#555">PENALTY PRINTED ON TEST TICKET</text>
+  <text x="76" y="708" font-family="Courier New, monospace" font-size="35" font-weight="700">$75.00</text>
+  <line x1="76" y1="758" x2="724" y2="758" stroke="#aaa"/>
+  <text x="76" y="803" font-family="Arial, sans-serif" font-size="15" fill="#555">LOCATION</text>
+  <text x="76" y="834" font-family="Arial, sans-serif" font-size="20">456 SAMPLE AVENUE, BROOKLYN, NY 10000</text>
+  <rect x="76" y="895" width="648" height="104" fill="#fef3c7" stroke="#111" stroke-width="2"/>
+  <text x="400" y="937" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" font-weight="700">FOR SOFTWARE TESTING ONLY</text>
+  <text x="400" y="971" text-anchor="middle" font-family="Arial, sans-serif" font-size="16">No person has been charged. No payment is due.</text>
+</svg>
