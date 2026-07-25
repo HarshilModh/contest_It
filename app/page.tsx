@@ -6,6 +6,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import HeroSection from "@/components/HeroSection";
 import StatsAndFaq from "@/components/StatsAndFaq";
 import BackgroundAtmosphere from "@/components/BackgroundAtmosphere";
+import CaseDiscussion from "@/components/CaseDiscussion";
 
 type AppState = "input" | "loading" | "result" | "error";
 
@@ -116,6 +117,7 @@ export default function Home() {
 
   function startStageTimer() {
     setLoadingStage(0);
+    setRecordCount(0);
     let s = 0;
     stageTimerRef.current = setInterval(() => {
       s = Math.min(s + 1, LOADING_STAGES.length - 1);
@@ -132,7 +134,6 @@ export default function Home() {
 
   useEffect(() => {
     if (appState !== "loading" || loadingStage !== 1) return;
-    setRecordCount(0);
     const target = 421390;
     const start = performance.now();
     let raf: number;
@@ -492,6 +493,8 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            <CaseDiscussion analysis={result} />
           </div>
         )}
       </main>

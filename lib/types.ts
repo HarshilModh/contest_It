@@ -29,3 +29,14 @@ export type Outcome = "dismissed" | "in_violation" | "settled" | "other";
     defenseDraft: string;
     caveats: string[];
   }
+
+  export type CaseDiscussionRole = "user" | "assistant";
+
+  export interface CaseDiscussionMessage {
+    role: CaseDiscussionRole;
+    content: string;
+  }
+
+  export interface CaseDiscussionResponse {
+    answer: string;
+  }
