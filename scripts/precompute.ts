@@ -12,7 +12,14 @@ const COMMON_CHARGES = [
   '10-125',
   '14-108',
   '16-118(2)',
-  '16-118(6)'
+  '16-118(6)',
+  '16-118 2',
+  '16-120 A',
+  '16-120 C',
+  '16-120 D',
+  '1-08',
+  '27-2005',
+  '24-142'
 ];
 
 function normalizeOutcome(resultString: string | null | undefined): Outcome {

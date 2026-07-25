@@ -31,11 +31,41 @@ export function normalizeOutcome(resultString: string | null | undefined): Outco
 }
 
 /**
- * Normalizes user/OCR input charge codes into a key matching Socrata queries or cache keys.
- * e.g., "16-118(2)", "A.C. 16-118 2 A" -> "16118"
+ * Normalizes user/OCR input charge codes into an alphanumeric key.
+ * e.g., "16-118(2)", "A.C. 16-118 2 A" -> "161182a"
  */
-function normalizeChargeKey(code: string): string {
+export function normalizeChargeKey(code: string): string {
   return code.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+/**
+ * Resolves a charge code against the precomputed local cache using exact, normalized,
+ * or partial key matching (e.g. "16118" matching "ac161182a").
+ */
+function findInCache(code: string): OathStats | null {
+  const cleaned = code.trim();
+  const norm = normalizeChargeKey(cleaned);
+
+  if (oathCache[cleaned]) return oathCache[cleaned];
+  if (oathCache[norm]) return oathCache[norm];
+
+  // Try extracting core section number (e.g., "16-118" from "A.C. 16-118 2 A")
+  const sectionMatch = cleaned.match(/\b\d{1,3}[-.]\d{1,3}\b/);
+  if (sectionMatch) {
+    const sec = sectionMatch[0];
+    const secNorm = normalizeChargeKey(sec);
+    if (oathCache[sec]) return oathCache[sec];
+    if (oathCache[secNorm]) return oathCache[secNorm];
+  }
+
+  // Look for substring match in cache keys
+  for (const [key, val] of Object.entries(oathCache)) {
+    if (key.length >= 4 && (norm.includes(key) || key.includes(norm))) {
+      return val;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -48,7 +78,8 @@ export async function getStatsForCharge(chargeCode: string): Promise<OathStats |
   }
 
   const cleanedCode = chargeCode.trim();
-  const normalizedKey = normalizeChargeKey(cleanedCode);
+  const sectionMatch = cleanedCode.match(/\b\d{1,3}[-.]\d{1,3}\b/);
+  const queryCode = sectionMatch ? sectionMatch[0] : cleanedCode;
 
   // 1. Attempt live fetch with 5s timeout
   const controller = new AbortController();
@@ -56,7 +87,7 @@ export async function getStatsForCharge(chargeCode: string): Promise<OathStats |
 
   try {
     const encode = encodeURIComponent;
-    const whereClause = `charge_1_code_section LIKE '%${cleanedCode}%'`;
+    const whereClause = `charge_1_code_section LIKE '%${queryCode}%'`;
     const url = `https://data.cityofnewyork.us/resource/jz4z-kudi.json?$select=hearing_result,penalty_imposed&$where=${encode(whereClause)}&$limit=5000`;
 
     const res = await fetch(url, { signal: controller.signal });
@@ -119,7 +150,7 @@ export async function getStatsForCharge(chargeCode: string): Promise<OathStats |
   }
 
   // 2. Fallback to cached data if live fetch failed, timed out, or returned empty
-  const cachedData = oathCache[cleanedCode] || oathCache[normalizedKey];
+  const cachedData = findInCache(cleanedCode);
   if (cachedData) {
     return {
       ...cachedData,
