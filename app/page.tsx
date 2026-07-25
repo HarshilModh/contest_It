@@ -1,459 +1,117 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import type { Analysis } from "@/lib/types";
-import VoiceInput from "@/components/VoiceInput";
-
-// ─── Types ──────────────────────────────────────────────────────────────────
+import { useEffect, useRef, useState } from "react";
+import type { Analysis, OathStats } from "@/lib/types";
+import ThemeToggle from "@/components/ThemeToggle";
+import HeroSection from "@/components/HeroSection";
+import StatsAndFaq from "@/components/StatsAndFaq";
+import BackgroundAtmosphere from "@/components/BackgroundAtmosphere";
 
 type AppState = "input" | "loading" | "result" | "error";
 
 const LOADING_STAGES = [
-  "Reading your summons…",
-  "Querying 400,000 hearing records…",
-  "Drafting your defense…",
+  "Reading ticket image via Gemini Vision OCR…",
+  "Querying 400,000+ public NYC OATH hearing records…",
+  "Synthesizing defense argument tailored for hearing officers…",
 ] as const;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function dismissalColor(rate: number): string {
-  if (rate >= 0.4) return "#22c55e"; // green
-  if (rate >= 0.2) return "#f59e0b"; // amber
-  return "#ef4444"; // red
+function statusForRate(rate: number) {
+  if (rate >= 0.4) return { color: "var(--emerald-accent)", dim: "var(--emerald-dim)", label: "Favorable Dismissal Odds" };
+  if (rate >= 0.2) return { color: "var(--amber-accent)", dim: "var(--amber-dim)", label: "Mixed Hearing Odds" };
+  return { color: "var(--rose-accent)", dim: "var(--rose-dim)", label: "Uphill Challenge" };
 }
 
 function formatPct(rate: number) {
   return `${Math.round(rate * 100)}%`;
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// SVG Circular Ring Gauge for Probability Percentage
+function RadialProbabilityRing({ rate, color }: { rate: number; color: string }) {
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - Math.min(rate, 1) * circumference;
 
-function StatBox({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
   return (
-    <div
-      style={{
-        background: "var(--surface-2)",
-        border: "1px solid var(--border)",
-        borderRadius: 8,
-        padding: "14px 16px",
-        flex: "1 1 140px",
-        minWidth: 120,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          color: "var(--muted)",
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: "var(--foreground)" }}>
-        {value}
-      </div>
-      {sub && (
-        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-          {sub}
+    <div style={{ position: "relative", width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: "rotate(-90deg)" }}>
+        <circle cx="70" cy="70" r={radius} fill="none" stroke="var(--surface-3)" strokeWidth="10" />
+        <circle
+          cx="70"
+          cy="70"
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="10"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1)" }}
+        />
+      </svg>
+      <div style={{ position: "absolute", textAlign: "center" }}>
+        <div style={{ fontSize: 32, fontWeight: 800, color: "var(--foreground)", lineHeight: 1, letterSpacing: "-0.02em" }}>
+          {formatPct(rate)}
         </div>
-      )}
+        <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", fontWeight: 700, marginTop: 4 }}>
+          Dismissal Odds
+        </div>
+      </div>
     </div>
   );
 }
 
-function LoadingIndicator({ stage }: { stage: number }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 32,
-        padding: "64px 0",
-      }}
-    >
-      {/* Spinner */}
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: "50%",
-          border: "3px solid var(--surface-3)",
-          borderTopColor: "var(--accent)",
-          animation: "spin 0.9s linear infinite",
-        }}
-      />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+// Outcome Proportion Bar
+function OutcomeBar({ stats }: { stats: OathStats }) {
+  const total = stats.totalCases || 1;
+  const segments = [
+    { key: "dismissed", label: "Dismissed", value: stats.outcomeBreakdown.dismissed, color: "var(--emerald-accent)" },
+    { key: "in_violation", label: "In violation", value: stats.outcomeBreakdown.in_violation, color: "var(--rose-accent)" },
+    { key: "settled", label: "Settled", value: stats.outcomeBreakdown.settled, color: "var(--amber-accent)" },
+    { key: "other", label: "Other", value: stats.outcomeBreakdown.other, color: "var(--muted)" },
+  ].filter((s) => s.value > 0);
 
-      {/* Stages */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          width: "100%",
-          maxWidth: 360,
-        }}
-      >
-        {LOADING_STAGES.map((label, i) => (
+  return (
+    <div>
+      <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: "var(--surface-3)", marginBottom: 14 }}>
+        {segments.map((s, i) => (
           <div
-            key={label}
+            key={s.key}
+            title={`${s.label}: ${s.value.toLocaleString()} cases (${formatPct(s.value / total)})`}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              opacity: i > stage ? 0.3 : 1,
-              transition: "opacity 0.4s",
+              width: `${(s.value / total) * 100}%`,
+              background: s.color,
+              marginRight: i < segments.length - 1 ? 2 : 0,
+              transition: "width 0.8s ease",
             }}
-          >
-            <div
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: "50%",
-                flexShrink: 0,
-                background:
-                  i < stage
-                    ? "var(--accent)"
-                    : i === stage
-                    ? "var(--surface-3)"
-                    : "var(--surface-2)",
-                border:
-                  i === stage
-                    ? "2px solid var(--accent)"
-                    : "2px solid transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {i < stage && (
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path
-                    d="M2 5l2.5 2.5L8 3"
-                    stroke="#000"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
+          />
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
+        {segments.map((s) => (
+          <div key={s.key} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted-2)", marginBottom: 2 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color }} />
+              {s.label}
             </div>
-            <span
-              style={{
-                fontSize: 14,
-                color: i === stage ? "var(--foreground)" : "var(--muted)",
-                fontWeight: i === stage ? 600 : 400,
-              }}
-            >
-              {label}
-            </span>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--foreground)" }}>
+              {formatPct(s.value / total)}{" "}
+              <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted)" }}>({s.value.toLocaleString()})</span>
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
 }
-
-function VerdictCard({ data }: { data: Analysis }) {
-  const [copied, setCopied] = useState(false);
-  const { extraction, stats, headline, reasoning, defenseDraft, caveats } =
-    data;
-  const rate = stats?.dismissalRate ?? 0;
-  const color = dismissalColor(rate);
-
-  function copyDefense() {
-    navigator.clipboard.writeText(defenseDraft).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Headline */}
-      <div
-        style={{
-          background: "var(--surface)",
-          border: `1px solid ${color}33`,
-          borderRadius: 12,
-          padding: "28px 28px 24px",
-        }}
-      >
-        {stats && (
-          <div
-            style={{
-              fontSize: 72,
-              fontWeight: 800,
-              lineHeight: 1,
-              color,
-              fontVariantNumeric: "tabular-nums",
-              marginBottom: 12,
-              fontFamily: "var(--font-mono)",
-            }}
-          >
-            {formatPct(rate)}
-          </div>
-        )}
-        <p
-          style={{
-            fontSize: 20,
-            fontWeight: 600,
-            color: "var(--foreground)",
-            lineHeight: 1.4,
-            margin: 0,
-          }}
-        >
-          {headline}
-        </p>
-        {stats && (
-          <div
-            style={{
-              marginTop: 8,
-              fontSize: 12,
-              color: "var(--muted)",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                background: stats.dataSource === "live" ? "#22c55e22" : "var(--surface-2)",
-                color: stats.dataSource === "live" ? "#22c55e" : "var(--muted)",
-                border: `1px solid ${stats.dataSource === "live" ? "#22c55e44" : "var(--border)"}`,
-                borderRadius: 4,
-                padding: "1px 7px",
-                fontSize: 10,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                fontWeight: 600,
-              }}
-            >
-              {stats.dataSource === "live" ? "Live data" : "Cached data"}
-            </span>
-            <span>
-              {stats.sampleWindow} · {stats.totalCases.toLocaleString()} cases
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Reasoning */}
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "20px 24px",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "var(--muted)",
-            marginBottom: 10,
-            fontWeight: 600,
-          }}
-        >
-          What the data shows
-        </div>
-        <p
-          style={{
-            fontSize: 15,
-            lineHeight: 1.7,
-            color: "var(--muted-2)",
-            margin: 0,
-          }}
-        >
-          {reasoning}
-        </p>
-      </div>
-
-      {/* Stats breakdown */}
-      {stats && (
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-              marginBottom: 12,
-              fontWeight: 600,
-            }}
-          >
-            Outcome breakdown
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            <StatBox
-              label="Dismissed"
-              value={`${stats.outcomeBreakdown.dismissed.toLocaleString()}`}
-              sub={formatPct(stats.dismissalRate)}
-            />
-            <StatBox
-              label="In violation"
-              value={`${stats.outcomeBreakdown.in_violation.toLocaleString()}`}
-              sub={formatPct(
-                stats.outcomeBreakdown.in_violation / stats.totalCases
-              )}
-            />
-            {stats.avgPenaltyImposed !== null && (
-              <StatBox
-                label="Avg penalty imposed"
-                value={`$${stats.avgPenaltyImposed}`}
-                sub={
-                  stats.medianPenaltyImposed !== null
-                    ? `median $${stats.medianPenaltyImposed}`
-                    : undefined
-                }
-              />
-            )}
-            <StatBox
-              label="Charge"
-              value={extraction.chargeCode ?? "—"}
-              sub={extraction.issuingAgency ?? undefined}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Defense draft */}
-      <div
-        style={{
-          background: "var(--surface)",
-          border: "1px solid var(--border-strong)",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "14px 20px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--surface-2)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--muted)",
-              fontWeight: 600,
-            }}
-          >
-            Your defense statement
-          </div>
-          <button
-            id="copy-defense-btn"
-            onClick={copyDefense}
-            style={{
-              background: copied ? "var(--accent)" : "var(--surface-3)",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 6,
-              padding: "5px 12px",
-              color: copied ? "#000" : "var(--muted-2)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-            }}
-          >
-            {copied ? "✓ Copied!" : "Copy"}
-          </button>
-        </div>
-        <div style={{ padding: "20px 24px" }}>
-          <p
-            style={{
-              fontSize: 14,
-              lineHeight: 1.8,
-              color: "var(--muted-2)",
-              margin: 0,
-              fontFamily: "var(--font-mono)",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {defenseDraft}
-          </p>
-        </div>
-      </div>
-
-      {/* Extraction meta */}
-      {extraction.confidence !== "high" && (
-        <div
-          style={{
-            background: "#f59e0b11",
-            border: "1px solid #f59e0b33",
-            borderRadius: 8,
-            padding: "12px 16px",
-            fontSize: 13,
-            color: "#f59e0b",
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-start",
-          }}
-        >
-          <span>⚠</span>
-          <span>
-            Gemini extracted this ticket with{" "}
-            <strong>{extraction.confidence}</strong> confidence.
-            {extraction.unreadableFields.length > 0
-              ? ` Fields not clearly read: ${extraction.unreadableFields.join(", ")}.`
-              : " Consider verifying the charge code."}{" "}
-            You can type the correct code below and re-analyze.
-          </span>
-        </div>
-      )}
-
-      {/* Caveats */}
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-        {caveats.map((c, i) => (
-          <p
-            key={i}
-            style={{
-              fontSize: 12,
-              color: "var(--muted)",
-              margin: "4px 0",
-              lineHeight: 1.6,
-            }}
-          >
-            {c}
-          </p>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>("input");
   const [result, setResult] = useState<Analysis | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [loadingStage, setLoadingStage] = useState(0);
-  const [chargeCode, setChargeCode] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [recordCount, setRecordCount] = useState(0);
+  const [copied, setCopied] = useState(false);
+
   const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function startStageTimer() {
@@ -462,7 +120,7 @@ export default function Home() {
     stageTimerRef.current = setInterval(() => {
       s = Math.min(s + 1, LOADING_STAGES.length - 1);
       setLoadingStage(s);
-    }, 2500);
+    }, 2400);
   }
 
   function stopStageTimer() {
@@ -472,11 +130,22 @@ export default function Home() {
     }
   }
 
-  async function analyze(payload: {
-    imageBase64?: string;
-    transcript?: string;
-    chargeCode?: string;
-  }) {
+  useEffect(() => {
+    if (appState !== "loading" || loadingStage !== 1) return;
+    setRecordCount(0);
+    const target = 421390;
+    const start = performance.now();
+    let raf: number;
+    function tick(now: number) {
+      const t = Math.min((now - start) / 1800, 1);
+      setRecordCount(Math.round(target * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [appState, loadingStage]);
+
+  async function handleAnalyze(payload: { imageBase64?: string; transcript?: string; chargeCode?: string }) {
     setAppState("loading");
     startStageTimer();
     try {
@@ -488,7 +157,7 @@ export default function Home() {
       const data = await res.json();
       stopStageTimer();
       if (!res.ok) {
-        setErrorMsg(data.error ?? "Something went wrong.");
+        setErrorMsg(data.error ?? "Could not analyze the ticket.");
         setAppState("error");
       } else {
         setResult(data as Analysis);
@@ -497,469 +166,360 @@ export default function Home() {
       }
     } catch {
       stopStageTimer();
-      setErrorMsg("Network error — check your connection and try again.");
+      setErrorMsg("Network connection error.");
       setAppState("error");
     }
-  }
-
-  function handleCodeSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const code = chargeCode.trim();
-    if (!code) return;
-    analyze({ chargeCode: code });
-  }
-
-  function handleVoiceTranscript(transcript: string) {
-    setChargeCode(transcript);
-    analyze({ transcript });
-  }
-
-  const handleFileDrop = useCallback(
-    (file: File) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(",")[1];
-        analyze({ imageBase64: base64 });
-      };
-      reader.readAsDataURL(file);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      handleFileDrop(file);
-    }
-  }
-
-  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) handleFileDrop(file);
   }
 
   function reset() {
     setAppState("input");
     setResult(null);
     setErrorMsg("");
-    setChargeCode("");
     setLoadingStage(0);
   }
 
-  // ── Styles ──
-  const containerStyle: React.CSSProperties = {
-    minHeight: "100vh",
-    background: "var(--background)",
-    display: "flex",
-    flexDirection: "column",
-  };
+  function copyDefenseText() {
+    if (!result?.defenseDraft) return;
+    navigator.clipboard.writeText(result.defenseDraft).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
-  const headerStyle: React.CSSProperties = {
-    borderBottom: "1px solid var(--border)",
-    padding: "0 24px",
-    height: 56,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    background: "var(--surface)",
-    flexShrink: 0,
-  };
-
-  const mainStyle: React.CSSProperties = {
-    flex: 1,
-    maxWidth: 720,
-    width: "100%",
-    margin: "0 auto",
-    padding: "40px 24px 80px",
-  };
-
-  const dropZoneStyle: React.CSSProperties = {
-    border: `2px dashed ${isDragging ? "var(--accent)" : "var(--border-strong)"}`,
-    borderRadius: 12,
-    background: isDragging ? "var(--accent-dim)" : "var(--surface)",
-    padding: "40px 24px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 12,
-    cursor: "pointer",
-    transition: "all 0.2s",
-    textAlign: "center",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex: 1,
-    background: "var(--surface-2)",
-    border: "1px solid var(--border-strong)",
-    borderRadius: 8,
-    padding: "11px 14px",
-    color: "var(--foreground)",
-    fontSize: 14,
-    fontFamily: "var(--font-mono)",
-    outline: "none",
-    width: "100%",
-  };
-
-  const primaryBtnStyle: React.CSSProperties = {
-    background: "var(--accent)",
-    border: "none",
-    borderRadius: 8,
-    padding: "11px 20px",
-    color: "#000",
-    fontSize: 14,
-    fontWeight: 700,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-    flexShrink: 0,
-    transition: "opacity 0.15s",
-  };
-
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 11,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
-    color: "var(--muted)",
-    fontWeight: 600,
-    marginBottom: 10,
-  };
+  function downloadDefenseFile() {
+    if (!result?.defenseDraft) return;
+    const element = document.createElement("a");
+    const file = new Blob([result.defenseDraft], { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = `OATH-Defense-${result.extraction.chargeCode ?? "Draft"}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  }
 
   return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <header style={headerStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div
-            style={{
-              width: 26,
-              height: 26,
-              borderRadius: 6,
-              background: "var(--accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <span style={{ fontSize: 13, fontWeight: 800, color: "#000" }}>⚖</span>
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em" }}>
-            Contest It
-          </span>
-          <span
-            style={{
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: 4,
-              padding: "1px 7px",
-              fontSize: 10,
-              color: "var(--muted)",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            NYC
-          </span>
-        </div>
-        {appState !== "input" && (
-          <button
-            id="reset-btn"
-            onClick={reset}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "5px 12px",
-              color: "var(--muted-2)",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            ← New ticket
-          </button>
-        )}
-      </header>
+    <div className="page-bg" style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Interactive Constellation Particle Atmosphere Canvas */}
+      <BackgroundAtmosphere />
 
-      <main style={mainStyle}>
-        {/* ─ INPUT STATE ─ */}
-        {appState === "input" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            <div>
-              <h1
-                style={{
-                  fontSize: 30,
-                  fontWeight: 800,
-                  letterSpacing: "-0.02em",
-                  margin: "0 0 8px",
-                  lineHeight: 1.2,
-                  color: "var(--foreground)",
-                }}
-              >
-                What are your odds?
-              </h1>
-              <p style={{ fontSize: 15, color: "var(--muted-2)", margin: 0, lineHeight: 1.6 }}>
-                Upload a photo of your NYC summons — or type the violation code — and
-                we&apos;ll compute your real dismissal odds from{" "}
-                <strong style={{ color: "var(--foreground)" }}>400,000+ hearing records.</strong>
-              </p>
-            </div>
+      {/* Dynamic Floating Gradient Atmosphere Orbs */}
+      <div className="bg-orb bg-orb-1" />
+      <div className="bg-orb bg-orb-2" />
+      <div className="bg-orb bg-orb-3" />
 
-            {/* Drop zone */}
-            <div>
-              <div style={sectionLabelStyle}>Upload ticket photo</div>
-              <div
-                id="drop-zone"
-                style={dropZoneStyle}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                role="button"
-                tabIndex={0}
-                aria-label="Upload ticket photo"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ")
-                    fileInputRef.current?.click();
-                }}
-              >
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    background: "var(--surface-2)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 22,
-                  }}
-                >
-                  📎
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: "var(--foreground)",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Drop ticket photo here
-                  </div>
-                  <div style={{ fontSize: 13, color: "var(--muted)" }}>
-                    or click to browse · JPG, PNG, HEIC
-                  </div>
-                </div>
-              </div>
-              <input
-                ref={fileInputRef}
-                id="file-input"
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleFileInput}
-              />
-            </div>
-
-            {/* Divider */}
+      {/* Floating Ultra-Glass Navbar */}
+      <div style={{ position: "sticky", top: 16, zIndex: 40, width: "100%", padding: "0 24px" }} className="no-print">
+        <header
+          className="glass-nav-floating"
+          style={{
+            maxWidth: 1040,
+            margin: "0 auto",
+            height: 64,
+            padding: "0 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={reset}>
             <div
               style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                background: "linear-gradient(135deg, var(--accent), var(--accent-hover))",
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
-                color: "var(--muted)",
-                fontSize: 12,
+                justifyContent: "center",
+                color: "#ffffff",
+                boxShadow: "0 4px 14px var(--accent-glow)",
               }}
             >
-              <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
-              <span>or</span>
-              <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v18M7 21h10M5 7l-3 6a3.5 3.5 0 007 0l-3-6h-1zM19 7l-3 6a3.5 3.5 0 007 0l-3-6h-1zM5 7h14M12 3l-3 4h6l-3-4z" />
+              </svg>
             </div>
-
-            {/* Manual code entry */}
             <div>
-              <div style={sectionLabelStyle}>Enter violation code</div>
-              <form
-                onSubmit={handleCodeSubmit}
-                style={{ display: "flex", gap: 8 }}
-              >
-                <input
-                  id="charge-code-input"
-                  type="text"
-                  style={inputStyle}
-                  value={chargeCode}
-                  onChange={(e) => setChargeCode(e.target.value)}
-                  placeholder="e.g. A.C. 16-118 2 A"
-                  aria-label="Violation charge code"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button
-                  id="analyze-btn"
-                  type="submit"
-                  style={primaryBtnStyle}
-                  disabled={!chargeCode.trim()}
-                >
-                  Analyze →
-                </button>
-              </form>
-            </div>
-
-            {/* Voice input slot */}
-            <div>
-              <div style={sectionLabelStyle}>Or say it out loud</div>
-              <VoiceInput onTranscript={handleVoiceTranscript} />
+              <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: "-0.02em", color: "var(--foreground)" }}>Contest It</span>
+              <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8, fontWeight: 700, letterSpacing: "0.04em" }}>NYC OATH AI</span>
             </div>
           </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <ThemeToggle />
+            {appState !== "input" && (
+              <button onClick={reset} className="btn-primary" style={{ borderRadius: 10, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
+                + New Scan
+              </button>
+            )}
+          </div>
+        </header>
+      </div>
+
+      {/* Main Workspace Area */}
+      <main style={{ flex: 1, maxWidth: 1040, width: "100%", margin: "0 auto", padding: "40px 24px 80px", position: "relative", zIndex: 10 }}>
+        {/* ─ HERO / INPUT STATE ─ */}
+        {appState === "input" && (
+          <>
+            <HeroSection onAnalyze={handleAnalyze} />
+            <StatsAndFaq onSelectCode={(code) => handleAnalyze({ chargeCode: code })} />
+          </>
         )}
 
         {/* ─ LOADING STATE ─ */}
         {appState === "loading" && (
-          <LoadingIndicator stage={loadingStage} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "80px 0", gap: 36 }}>
+            <div style={{ position: "relative", width: 72, height: 72 }}>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: -18,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  filter: "blur(28px)",
+                  opacity: 0.35,
+                  animation: "livePulse 1.8s ease-in-out infinite",
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  width: 72,
+                  height: 72,
+                  borderRadius: "50%",
+                  border: "4px solid var(--surface-3)",
+                  borderTopColor: "var(--accent)",
+                  animation: "spin 0.85s linear infinite",
+                }}
+              />
+            </div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", maxWidth: 440 }}>
+              {LOADING_STAGES.map((stageText, idx) => (
+                <div
+                  key={stageText}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    opacity: idx > loadingStage ? 0.35 : 1,
+                    transition: "opacity 0.3s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: "50%",
+                      background: idx < loadingStage ? "var(--emerald-accent)" : idx === loadingStage ? "var(--surface-3)" : "var(--surface-2)",
+                      border: idx === loadingStage ? "2px solid var(--accent)" : "none",
+                      color: "#ffffff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {idx < loadingStage ? "✓" : idx + 1}
+                  </div>
+                  <span style={{ fontSize: 15, fontWeight: idx === loadingStage ? 700 : 500, color: "var(--foreground)" }}>
+                    {stageText}
+                  </span>
+                </div>
+              ))}
+              {loadingStage === 1 && (
+                <div style={{ marginLeft: 40, fontFamily: "var(--font-mono)", fontSize: 14, color: "var(--accent)", fontWeight: 700 }}>
+                  {recordCount.toLocaleString()} hearing records scanned
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ─ ERROR STATE ─ */}
         {appState === "error" && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 20,
-              padding: "60px 0",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 40 }}>⚠</div>
-            <div>
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "var(--foreground)",
-                  marginBottom: 8,
-                }}
-              >
-                Couldn&apos;t analyze the ticket
-              </div>
-              <p
-                style={{
-                  fontSize: 14,
-                  color: "var(--muted-2)",
-                  maxWidth: 400,
-                  margin: "0 auto",
-                  lineHeight: 1.7,
-                }}
-              >
-                {errorMsg || "An unexpected error occurred."}
-              </p>
-              {errorMsg.toLowerCase().includes("charge code") && (
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "var(--muted)",
-                    maxWidth: 400,
-                    margin: "10px auto 0",
-                  }}
-                >
-                  We couldn&apos;t read the charge code from the image. Try typing it
-                  manually below.
-                </p>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
-              <button
-                id="try-again-btn"
-                onClick={reset}
-                style={primaryBtnStyle}
-              >
-                Try again
-              </button>
-              <form
-                onSubmit={handleCodeSubmit}
-                style={{ display: "flex", gap: 8 }}
-              >
-                <input
-                  id="error-charge-code-input"
-                  type="text"
-                  style={{ ...inputStyle, width: 200 }}
-                  value={chargeCode}
-                  onChange={(e) => setChargeCode(e.target.value)}
-                  placeholder="Type charge code"
-                  aria-label="Violation charge code"
-                />
-                <button
-                  id="error-analyze-btn"
-                  type="submit"
-                  style={primaryBtnStyle}
-                  disabled={!chargeCode.trim()}
-                >
-                  Analyze
-                </button>
-              </form>
-            </div>
+          <div style={{ textAlign: "center", padding: "64px 0" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "var(--rose-accent)", marginBottom: 12 }}>Analysis Request Failed</div>
+            <p style={{ color: "var(--muted-2)", marginBottom: 24 }}>{errorMsg}</p>
+            <button onClick={reset} className="btn-primary" style={{ padding: "10px 20px", borderRadius: 10 }}>
+              Try Again
+            </button>
           </div>
         )}
 
-        {/* ─ RESULT STATE ─ */}
+        {/* ─ RESULT STATE (CIVIC BRIEFING DASHBOARD) ─ */}
         {appState === "result" && result && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
+          <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+            {/* Top Analysis Banner */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div>
-                <div style={sectionLabelStyle}>Analysis complete</div>
-                <h1
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    margin: 0,
-                    color: "var(--foreground)",
-                  }}
-                >
-                  {result.extraction.chargeDescription ?? result.extraction.chargeCode ?? "NYC Summons"}
+                <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--accent)" }}>
+                  NYC OATH Analysis Report
+                </span>
+                <h1 style={{ fontSize: 26, fontWeight: 800, margin: "2px 0 0", color: "var(--foreground)" }}>
+                  {result.extraction.chargeDescription ?? result.extraction.chargeCode ?? "Summons Violation Analysis"}
                 </h1>
               </div>
+              <button onClick={reset} className="chip-tag no-print" style={{ borderRadius: 10, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>
+                ← Scan Another Ticket
+              </button>
             </div>
-            <VerdictCard data={result} />
+
+            {/* Split Dashboard Row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24 }}>
+              {/* Left Panel: Verdict & Data Stats */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {/* Radial Gauge Verdict Card */}
+                {result.stats && (
+                  <div
+                    className="console-card"
+                    style={{
+                      padding: "28px 24px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 24,
+                      background: `linear-gradient(135deg, ${statusForRate(result.stats.dismissalRate).dim}, var(--glass-card-bg))`,
+                    }}
+                  >
+                    <RadialProbabilityRing rate={result.stats.dismissalRate} color={statusForRate(result.stats.dismissalRate).color} />
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                          color: statusForRate(result.stats.dismissalRate).color,
+                          marginBottom: 6,
+                        }}
+                      >
+                        {statusForRate(result.stats.dismissalRate).label}
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--foreground)", lineHeight: 1.4, marginBottom: 8 }}>
+                        {result.headline}
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                        Based on {result.stats.totalCases.toLocaleString()} historical NYC hearings ({result.stats.sampleWindow}).
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reasoning Card */}
+                <div className="console-card" style={{ padding: "24px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", marginBottom: 8 }}>
+                    Analytical Summary
+                  </div>
+                  <p style={{ fontSize: 15, lineHeight: 1.65, color: "var(--muted-2)", margin: 0 }}>{result.reasoning}</p>
+                </div>
+
+                {/* Outcome Breakdown Card */}
+                {result.stats && (
+                  <div className="console-card" style={{ padding: "24px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", marginBottom: 14 }}>
+                      Case Outcomes Breakdown · {result.stats.totalCases.toLocaleString()} Total Hearings
+                    </div>
+                    <OutcomeBar stats={result.stats} />
+                    {result.stats.avgPenaltyImposed !== null && (
+                      <div style={{ display: "flex", gap: 16, marginTop: 18, borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Avg Imposed Penalty</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color: "var(--foreground)" }}>${result.stats.avgPenaltyImposed}</div>
+                        </div>
+                        {result.stats.medianPenaltyImposed !== null && (
+                          <div>
+                            <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>Median Penalty</div>
+                            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--foreground)" }}>${result.stats.medianPenaltyImposed}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Panel: Formal OATH Defense Brief */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                <div className="defense-brief" style={{ padding: "24px" }}>
+                  {/* Brief Header Bar */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
+                    <div>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>
+                        DOC ID: OATH-DEF-2026
+                      </span>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--foreground)", marginTop: 2 }}>Formal Defense Brief</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }} className="no-print">
+                      <button onClick={downloadDefenseFile} className="chip-tag" style={{ padding: "5px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer" }}>
+                        Download .txt
+                      </button>
+                      <button onClick={() => window.print()} className="chip-tag" style={{ padding: "5px 10px", fontSize: 11, borderRadius: 6, cursor: "pointer" }}>
+                        Print Brief
+                      </button>
+                      <button onClick={copyDefenseText} className="btn-primary" style={{ padding: "5px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer" }}>
+                        {copied ? "✓ Copied" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Brief Text Content */}
+                  <div
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 14,
+                      lineHeight: 1.8,
+                      color: "var(--foreground)",
+                      whiteSpace: "pre-wrap",
+                      background: "var(--surface-2)",
+                      padding: "18px",
+                      borderRadius: 12,
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    {result.defenseDraft}
+                  </div>
+                </div>
+
+                {/* Disclaimer */}
+                <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }} className="no-print">
+                  {result.caveats.map((c, i) => (
+                    <p key={i} style={{ margin: "4px 0" }}>
+                      {c}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
 
-      {/* Footer */}
+      {/* Footer Console */}
       <footer
+        className="no-print"
         style={{
+          position: "relative",
+          zIndex: 10,
           borderTop: "1px solid var(--border)",
-          padding: "14px 24px",
+          padding: "20px 32px",
+          background: "var(--glass-nav-bg)",
+          backdropFilter: "blur(16px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 12,
-          background: "var(--surface)",
+          fontSize: 13,
+          color: "var(--muted)",
           flexWrap: "wrap",
+          gap: 12,
         }}
       >
-        <span style={{ fontSize: 12, color: "var(--muted)" }}>
-          Powered by{" "}
-          <strong style={{ color: "var(--muted-2)" }}>Gemini</strong> ·
-          Data from{" "}
-          <strong style={{ color: "var(--muted-2)" }}>NYC OATH Hearings Dataset</strong>
-        </span>
-        <span style={{ fontSize: 12, color: "var(--muted)" }}>
-          This is not legal advice.
-        </span>
+        <div>
+          Powered by <strong style={{ color: "var(--foreground)" }}>Gemini AI</strong> · Dataset:{" "}
+          <strong style={{ color: "var(--foreground)" }}>NYC OATH Hearings Public Data</strong>
+        </div>
+        <div>Not legal advice. Statistical estimates derived from public records.</div>
       </footer>
     </div>
   );
