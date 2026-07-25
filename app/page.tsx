@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Analysis, OathStats } from "@/lib/types";
+import { BASELINE, compareToBaseline } from "@/lib/baseline";
 import ThemeToggle from "@/components/ThemeToggle";
 import HeroSection from "@/components/HeroSection";
 import StatsAndFaq from "@/components/StatsAndFaq";
@@ -24,6 +25,21 @@ function statusForRate(rate: number) {
 
 function formatPct(rate: number) {
   return `${Math.round(rate * 100)}%`;
+}
+
+function formatUSD(value: number) {
+  return `$${Math.round(value).toLocaleString()}`;
+}
+
+/** "9 points above the citywide average" style copy for a single charge's rate. */
+function baselineComparisonText(rate: number): string {
+  const { direction, diff } = compareToBaseline(rate);
+  const points = Math.round(Math.abs(diff) * 100);
+  if (direction === "typical") {
+    return `about typical for the ${BASELINE.codeCount} charge types we track`;
+  }
+  const word = direction === "above" ? "above" : "below";
+  return `${points} point${points === 1 ? "" : "s"} ${word} the ${formatPct(BASELINE.rate)} average across the ${BASELINE.codeCount} charge types we track`;
 }
 
 // SVG Circular Ring Gauge for Probability Percentage
@@ -101,6 +117,63 @@ function OutcomeBar({ stats }: { stats: OathStats }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * "Should you contest?" decision box.
+ *
+ * `expectedCost` is the loss-weighted average penalty: (1 - dismissal rate) x
+ * average penalty among cases actually found in violation. It only accounts
+ * for the two outcomes we have a real dollar figure for (dismissed -> $0,
+ * in violation -> avgPenaltyImposed) — settled cases exist but we don't have
+ * a separate settlement dollar figure, so they're left out of the estimate
+ * rather than guessed at, and that's disclosed in the caption.
+ */
+function ExpectedValueBox({ stats, ticketPenalty }: { stats: OathStats; ticketPenalty: number | null }) {
+  if (stats.avgPenaltyImposed === null) return null;
+
+  const loseRate = 1 - stats.dismissalRate;
+  const expectedCost = loseRate * stats.avgPenaltyImposed;
+  const worthContesting = ticketPenalty !== null ? expectedCost < ticketPenalty : expectedCost < stats.avgPenaltyImposed * 0.85;
+
+  return (
+    <div className="console-card" style={{ padding: "24px" }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", marginBottom: 14 }}>
+        Should you contest?
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "14px 16px" }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6 }}>Pay now</div>
+          {ticketPenalty !== null ? (
+            <>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--foreground)" }}>{formatUSD(ticketPenalty)}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>certain, 0 hearing days</div>
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>Amount on your ticket — not read from this input</div>
+          )}
+        </div>
+        <div style={{ background: "var(--accent-dim)", borderRadius: 10, padding: "14px 16px", border: "1px solid var(--glass-border-hover)" }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", marginBottom: 6 }}>Expected cost if you contest</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "var(--foreground)" }}>{formatUSD(expectedCost)}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+            {formatPct(stats.dismissalRate)} chance $0 · {formatPct(loseRate)} chance ~{formatUSD(stats.avgPenaltyImposed)}
+          </div>
+        </div>
+      </div>
+      <p style={{ fontSize: 12.5, color: "var(--muted-2)", lineHeight: 1.6, marginTop: 14, marginBottom: 0 }}>
+        {ticketPenalty !== null ? (
+          worthContesting ? (
+            <>Expected cost of contesting is <strong style={{ color: "var(--foreground)" }}>less</strong> than paying the {formatUSD(ticketPenalty)} ticket now — plus a hearing day.</>
+          ) : (
+            <>Expected cost of contesting is <strong style={{ color: "var(--foreground)" }}>close to or more than</strong> the {formatUSD(ticketPenalty)} ticket — weigh the hearing-day cost yourself.</>
+          )
+        ) : (
+          <>This estimate covers dismissed and in-violation outcomes only, using the average penalty among cases found in violation — it excludes settled cases, which we don&apos;t have a separate dollar figure for. Compare it to the amount printed on your ticket.</>
+        )}
+      </p>
     </div>
   );
 }
@@ -402,7 +475,8 @@ export default function Home() {
                         {result.headline}
                       </div>
                       <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                        Based on {result.stats.totalCases.toLocaleString()} historical NYC hearings ({result.stats.sampleWindow}).
+                        Based on {result.stats.totalCases.toLocaleString()} historical NYC hearings ({result.stats.sampleWindow}) —{" "}
+                        {baselineComparisonText(result.stats.dismissalRate)}.
                       </div>
                     </div>
                   </div>
@@ -438,6 +512,10 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+                )}
+
+                {result.stats && (
+                  <ExpectedValueBox stats={result.stats} ticketPenalty={result.extraction.penaltyOnTicket} />
                 )}
               </div>
 
