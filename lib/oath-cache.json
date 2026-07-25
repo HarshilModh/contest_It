@@ -1,4 +1,19 @@
 {
+  "108": {
+    "chargeCode": "1-08",
+    "totalCases": 5000,
+    "dismissalRate": 0.02,
+    "outcomeBreakdown": {
+      "dismissed": 77,
+      "in_violation": 78,
+      "settled": 0,
+      "other": 4845
+    },
+    "avgPenaltyImposed": 33,
+    "medianPenaltyImposed": 25,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
   "10125": {
     "chargeCode": "10-125",
     "totalCases": 5000,
@@ -90,17 +105,17 @@
     "sampleWindow": "2019-2026"
   },
   "161182": {
-    "chargeCode": "16-118(2)",
+    "chargeCode": "16-118 2",
     "totalCases": 5000,
-    "dismissalRate": 0.06,
+    "dismissalRate": 0.01,
     "outcomeBreakdown": {
-      "dismissed": 324,
-      "in_violation": 377,
+      "dismissed": 56,
+      "in_violation": 30,
       "settled": 0,
-      "other": 4299
+      "other": 4914
     },
-    "avgPenaltyImposed": 105,
-    "medianPenaltyImposed": 100,
+    "avgPenaltyImposed": 50,
+    "medianPenaltyImposed": 50,
     "dataSource": "cached",
     "sampleWindow": "2019-2026"
   },
@@ -266,6 +281,126 @@
     },
     "avgPenaltyImposed": 212,
     "medianPenaltyImposed": 100,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16-118 2": {
+    "chargeCode": "16-118 2",
+    "totalCases": 5000,
+    "dismissalRate": 0.01,
+    "outcomeBreakdown": {
+      "dismissed": 56,
+      "in_violation": 30,
+      "settled": 0,
+      "other": 4914
+    },
+    "avgPenaltyImposed": 50,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16-120 A": {
+    "chargeCode": "16-120 A",
+    "totalCases": 5000,
+    "dismissalRate": 0.02,
+    "outcomeBreakdown": {
+      "dismissed": 76,
+      "in_violation": 32,
+      "settled": 0,
+      "other": 4892
+    },
+    "avgPenaltyImposed": 49,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16120a": {
+    "chargeCode": "16-120 A",
+    "totalCases": 5000,
+    "dismissalRate": 0.02,
+    "outcomeBreakdown": {
+      "dismissed": 76,
+      "in_violation": 32,
+      "settled": 0,
+      "other": 4892
+    },
+    "avgPenaltyImposed": 49,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16-120 C": {
+    "chargeCode": "16-120 C",
+    "totalCases": 5000,
+    "dismissalRate": 0.01,
+    "outcomeBreakdown": {
+      "dismissed": 60,
+      "in_violation": 29,
+      "settled": 0,
+      "other": 4911
+    },
+    "avgPenaltyImposed": 49,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16120c": {
+    "chargeCode": "16-120 C",
+    "totalCases": 5000,
+    "dismissalRate": 0.01,
+    "outcomeBreakdown": {
+      "dismissed": 60,
+      "in_violation": 29,
+      "settled": 0,
+      "other": 4911
+    },
+    "avgPenaltyImposed": 49,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16-120 D": {
+    "chargeCode": "16-120 D",
+    "totalCases": 5000,
+    "dismissalRate": 0.06,
+    "outcomeBreakdown": {
+      "dismissed": 286,
+      "in_violation": 529,
+      "settled": 19,
+      "other": 4166
+    },
+    "avgPenaltyImposed": 52,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "16120d": {
+    "chargeCode": "16-120 D",
+    "totalCases": 5000,
+    "dismissalRate": 0.06,
+    "outcomeBreakdown": {
+      "dismissed": 286,
+      "in_violation": 529,
+      "settled": 19,
+      "other": 4166
+    },
+    "avgPenaltyImposed": 52,
+    "medianPenaltyImposed": 50,
+    "dataSource": "cached",
+    "sampleWindow": "2019-2026"
+  },
+  "1-08": {
+    "chargeCode": "1-08",
+    "totalCases": 5000,
+    "dismissalRate": 0.02,
+    "outcomeBreakdown": {
+      "dismissed": 77,
+      "in_violation": 78,
+      "settled": 0,
+      "other": 4845
+    },
+    "avgPenaltyImposed": 33,
+    "medianPenaltyImposed": 25,
     "dataSource": "cached",
     "sampleWindow": "2019-2026"
   }
