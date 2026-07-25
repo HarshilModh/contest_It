@@ -1,147 +1,144 @@
-# Contest It ⚖️
+# Contest It
 
-> **Civic AI Console for NYC OATH Summons Defense & Empirical Dismissal Odds**
+**Your real odds of beating a New York City summons — computed from the city's own hearing records, not a guess.**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.2-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react)](https://react.dev/)
-[![Gemini AI](https://img.shields.io/badge/Google_Gemini-2.5_Flash-8E75B2?style=flat-square&logo=google)](https://ai.google.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-
----
-
-## 📌 Problem Overview
-
-Every year, New York City issues over **400,000+ administrative summonses** across agencies like the Department of Sanitation (**DSNY**), Department of Environmental Protection (**DEP**), Department of Buildings (**DOB**), and Department of Health (**DOHMH**). 
-
-The vast majority of citizens, homeowners, and small business owners either **pay fines unnecessarily** or suffer default penalties simply because:
-1. They don't know their **empirical dismissal odds** based on historical hearing verdicts.
-2. They don't know how to structure a formal, legally grounded **defense statement** tailored for NYC OATH (Office of Administrative Trials and Hearings) officers.
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
+[![Gemini](https://img.shields.io/badge/Google_Gemini-Flash-8E75B2?style=flat-square&logo=google)](https://ai.google.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![NYC Open Data](https://img.shields.io/badge/NYC_Open_Data-OATH_Hearings-informational?style=flat-square)](https://data.cityofnewyork.us/City-Government/OATH-Hearings-Division-Case-Status/jz4z-kudi)
 
 ---
 
-## 💡 The Solution: Contest It
+## The problem
 
-**Contest It** bridges the gap between public open data and citizen action. By combining **Google Gemini AI Multimodal Vision OCR** with a pre-indexed dataset of **421,390+ public NYC OATH hearing decisions**, Contest It empowers users to:
+NYC issues hundreds of thousands of administrative summonses a year — sidewalk violations, sanitation, buildings, health code. Most people just pay, because contesting one feels like a coin flip in a language they don't speak.
 
-1. **Scan Tickets Instantly**: Upload a photo of an NYC summons or speak/type a violation charge code (e.g. `16-118(2)` for Sidewalk Snow/Ice).
-2. **Calculate Real Dismissal Odds**: Instantly cross-reference exact charge codes against historical NYC hearing verdicts to reveal dismissal probability percentages, average penalties, and case outcome distributions.
-3. **Generate Formal Defense Briefs**: Receive a custom, structured legal defense statement citing applicable NYC Administrative Codes and procedural defenses ready to submit online or present at a hearing.
+It isn't a coin flip. NYC's Office of Administrative Trials and Hearings (OATH) publishes the outcome of every hearing it has ever held. Nobody reads it. **Contest It** does.
 
----
+## What it does
 
-## ✨ Key Features
+1. **Read the ticket.** Upload a photo, say the violation code out loud, or type it. Gemini extracts the charge code, agency, and penalty from whatever you give it — and says so honestly when it can't read something, instead of guessing.
+2. **Compute the real odds.** The app runs a live aggregate query against NYC's OATH hearings dataset for that exact charge code: how many hearings happened, how many were dismissed, what the average and median penalty ended up being for people who lost. A precomputed cache keeps the demo alive if the live API is slow or the venue Wi-Fi isn't.
+3. **Explain it and draft the defense.** Gemini turns those numbers into a plain-English verdict and a factual defense statement, using only the numbers the app computed — never a number Gemini invented itself.
 
-- 📸 **Ticket OCR Scanner Viewfinder**: Drag-and-drop or upload photo tickets (JPG, PNG, HEIC) with animated laser OCR scanning powered by Gemini Vision.
-- 🎙️ **Voice Search Console**: Speak violation details using integrated browser Web Speech API.
-- 📊 **Empirical OATH Analytics Engine**: Precomputed statistical analysis over 420,000+ public NYC hearing records providing:
-  - SVG Radial Probability Ring Gauges
-  - Historical Case Outcome Distribution (Dismissed, In Violation, Settled, Other)
-  - Average & Median Imposed Penalty Benchmarks ($)
-- 📝 **Formal Defense Statement Synthesis**: AI-generated defense briefs formatted specifically for NYC OATH Hearing Officers.
-- 💾 **Export & Print**: One-click download as `.txt` or print-formatted legal defense briefs.
-- 🎨 **Ultra-Modern Glassmorphic UI**:
-  - Dual Theme Support (Vibrant Light Mode by default & Electric Obsidian Dark Mode).
-  - Interactive Constellation Particle Canvas background with mouse reactivity.
-  - Animated 3D perspective grid & ambient aurora atmosphere.
-  - Color-coded agency badges (DSNY Green, DEP Cyan, DOB Amber, DOHMH Pink).
-  - 100% responsive layout across mobile, tablet, and desktop viewports.
+## The proof this isn't generic
 
----
+This is the whole pitch: **odds vary enormously by charge**, and no chatbot has this table in its weights. Numbers below are live aggregates from the actual dataset, dismissal rate computed among hearings that were actually contested (excludes pending, defaulted, and written-off cases, which never went before a hearing officer):
 
-## 🛠️ Tech Stack & Architecture
+| Charge section | Dismissal rate | Contested hearings | Avg. penalty if found in violation |
+|---|---|---|---|
+| `10-119` | **72.9%** | 3,724 | $106 |
+| `10.119` | 65.8% | 145,162 | $96 |
+| `10-125` | 62.1% | 1,303 | $23 |
+| `16-120` (receptacle storage) | 39.8% | 462,553 | $142 |
+| `16-118` (sidewalk snow/ice) | 34.0% | 719,266 | $158 |
+| `19-102` | 33.7% | 64,544 | $1,321 |
+| `1-08` | 37.0% | 205,833 | $53 |
+| `28-301.1` | **10.1%** | 130,985 | $931 |
 
-### Core Technologies
-- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
-- **UI & Logic**: [React 19](https://react.dev/), TypeScript
-- **Styling**: Vanilla CSS Design Tokens, Glassmorphic Utility Classes, Tailwind CSS v4
-- **AI Engine**: [Google Gemini API (`@google/genai`)](https://www.npmjs.com/package/@google/genai) — `gemini-2.5-flash`
-- **Data Source**: NYC Open Data — NYC OATH Hearing Decisions Dataset (421,390+ records)
+A near-7x spread between the best and worst charge code — that's the whole product in one table.
 
-### Project Directory Structure
+## Architecture
 
 ```
-contest_it/
-├── app/
-│   ├── api/
-│   │   └── analyze/
-│   │       └── route.ts          # Gemini Vision OCR & OATH Data Fusion API
-│   ├── icon.svg                  # Brand SVG Vector Favicon
-│   ├── globals.css               # Dual Themes, Glassmorphism & Backgrounds
-│   ├── layout.tsx                # Root Layout, Metadata & Theme Hydration
-│   └── page.tsx                  # Main Workspace Console
-├── components/
-│   ├── BackgroundAtmosphere.tsx  # Interactive 60fps Particle Constellation
-│   ├── HeroSection.tsx           # Ticket Scanner Viewfinder & Voice Search
-│   ├── StatsAndFaq.tsx           # Agency Benchmarks, Metrics & Workflow
-│   ├── ThemeToggle.tsx           # Light/Dark Theme Switcher Button
-│   └── VoiceInput.tsx            # Speech-to-Text Voice Microphone Button
-├── lib/
-│   ├── gemini.ts                 # Gemini Vision OCR & Defense Synthesis Logic
-│   ├── oath.ts                   # OATH Dataset Query & Odds Calculator
-│   ├── oath-cache.json           # Precomputed Index of 421,390+ OATH Cases
-│   └── types.ts                  # Shared TypeScript Interfaces
-└── public/                       # Static Assets & Mocks
+User input (photo / voice / text)
+        │
+        ▼
+  Gemini extracts charge code, agency, penalty      lib/gemini.ts
+        │
+        ▼
+  Live GROUP BY over NYC OATH hearings dataset       lib/oath.ts
+  (falls back to precomputed cache on timeout)       lib/oath-cache.json
+        │
+        ▼
+  Gemini writes the plain-English verdict            lib/gemini.ts
+  and the defense draft, from real numbers only
+        │
+        ▼
+  Verdict card: odds, outcome breakdown,              app/page.tsx
+  defense draft, sourced and labeled honestly
 ```
 
----
+Single API surface: `POST /api/analyze` in `app/api/analyze/route.ts`, orchestrating extract → aggregate → synthesize, with every stage degrading gracefully instead of throwing a 500.
 
-## 🚀 Getting Started
+### Stack
 
-### Prerequisites
-- **Node.js**: `v18.17.0` or higher
-- **npm** or **yarn** or **pnpm**
-- **Google Gemini API Key**: Obtain a key from [Google AI Studio](https://aistudio.google.com/)
+- **Next.js 16 (App Router) + React 19 + TypeScript** — one repo, one deploy, server-side API key handling.
+- **Gemini API** via [`@google/generative-ai`](https://www.npmjs.com/package/@google/generative-ai), called server-side only.
+- **NYC Open Data (Socrata)** — [OATH Hearings Division Case Status](https://data.cityofnewyork.us/City-Government/OATH-Hearings-Division-Case-Status/jz4z-kudi) (`jz4z-kudi`), queried directly with `fetch`, no SDK.
+- **Tailwind CSS v4** for styling, deployed on **Vercel**.
+- No database, no auth, no server-held user state.
 
-### Installation
+### Project structure
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-username/contest_it.git
-   cd contest_it
-   ```
+```
+app/
+  api/analyze/route.ts     Orchestration: extract -> aggregate -> synthesize
+  page.tsx                 Input / loading / verdict UI states
+  globals.css               Design tokens, theme, backdrop
+components/
+  VoiceInput.tsx            Web Speech API mic input, text fallback always visible
+  HeroSection.tsx, StatsAndFaq.tsx, BackgroundAtmosphere.tsx, ThemeToggle.tsx
+lib/
+  types.ts                  The shared contract (TicketExtraction, OathStats, Analysis)
+  gemini.ts                 extractTicket() and synthesize() — structured JSON output
+  oath.ts                   getStatsForCharge() — live aggregate with cache fallback
+  oath-cache.json           Precomputed stats for the demo's charge codes
+  baseline.ts               Citywide baseline dismissal rate, for comparison copy
+scripts/
+  precompute.ts             Rebuilds oath-cache.json from live queries
+demo/
+  ticket-*.png / .svg       Three labeled test-fixture summonses, no real personal data
+mocks/
+  analysis.json             A valid Analysis object for frontend-only development
+```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+## Getting started
 
-3. **Configure Environment Variables**:
-   Create a `.env.local` file in the root directory:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
+**Prerequisites:** Node 18.17+, and a Gemini API key from [Google AI Studio](https://aistudio.google.com/).
 
-4. **Run Development Server**:
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser to launch the console.
+```bash
+git clone <this-repo>
+cd contest_it
+npm install
+cp .env.example .env.local        # then paste your GEMINI_API_KEY
+npm run dev                       # http://localhost:3000
+```
 
-5. **Build for Production**:
-   ```bash
-   npm run build
-   npm run start
-   ```
+Production build: `npm run build && npm run start`.
 
----
+Rebuild the OATH cache (needed if you add charge codes to `scripts/precompute.ts`):
 
-## 📊 Sample Violation Codes to Test
+```bash
+npx tsx scripts/precompute.ts
+```
 
-Try searching or clicking these preset NYC violation codes:
-- `16-118(2)` — **DSNY**: Sidewalk Snow / Ice Removal
-- `24-244` — **DEP**: Unreasonable Noise Violation
-- `28-301.1` — **DOB**: Failure to Maintain Building Exterior
-- `81.07` — **DOHMH**: Food Service Sanitation / Signage
+## Try it
 
----
+These charge codes are precomputed and load instantly even if the live NYC Open Data API is slow:
 
-## ⚖️ Disclaimer
+| Try | Charge | What it's actually for |
+|---|---|---|
+| `A.C. 16-118 2 A` | Sidewalk snow/ice | `demo/ticket-01-dirty-sidewalk.png` |
+| `10.119.` | Illegal posting / handbill | `demo/ticket-02-handbill.png` |
+| `A.C. 16-120 C` | Storage of receptacles | `demo/ticket-03-receptacles.png` |
+| `10-125` | — | Highest dismissal rate in the cache (62.1%) |
+| `28-301.1` | — | Lowest dismissal rate in the cache (10.1%) |
 
-*Contest It is a civic technology demonstration tool built for analytical and informational purposes. Dismissal probabilities and penalty estimates are calculated from historical public records of completed NYC OATH hearings. Contest It does not provide formal legal representation or attorney advice.*
+Any other charge code runs a live query against NYC Open Data; if there's genuinely no data for it, the app says so instead of inventing a number.
 
----
+## What's real vs. what's cached
 
-## 📄 License
+- **Every statistic on screen is computed by this app from the OATH dataset** — Gemini never generates a number, only the prose around one.
+- Results are labeled **Live data** or **Cached data** in the UI. Cached means precomputed by `scripts/precompute.ts` so the demo survives unreliable Wi-Fi — not a substitute dataset.
+- If a charge code has no hearing history, the app says exactly that rather than guessing.
+- The three tickets in `demo/` are clearly marked test fixtures with no real personal information.
 
-Distributed under the MIT License. See `LICENSE` for details.
+## Disclaimer
+
+Contest It is a civic-technology demonstration built for informational purposes. Dismissal probabilities and penalty figures are statistical summaries of public NYC OATH hearing records. **This is not legal advice**, and Contest It does not provide legal representation.
+
+## License
+
+MIT. See `LICENSE`.
